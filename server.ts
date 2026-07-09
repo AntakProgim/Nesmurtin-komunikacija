@@ -75,8 +75,8 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 // Serve static files from the React/Vite app
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Wildcard route to handle client-side routing
-app.get('/:all*', (req: Request, res: Response) => {
+// Wildcard route to handle client-side routing using a safe RegExp to support Express 5
+app.get(/^(?!\/api).*/, (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
