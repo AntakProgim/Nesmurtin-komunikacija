@@ -76,7 +76,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Wildcard route to handle client-side routing
-app.get('/*', (req: Request, res: Response) => {
+app.get('/:all*', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
