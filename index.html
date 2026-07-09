@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nesmurtinė komunikacija</title>
+    <link rel="stylesheet" href="index.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      if (typeof process === 'undefined') {
+        window.process = { env: {} };
+      }
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.sh/@google/genai@^0.7.0"
+        }
+      }
+    </script>
+    <script type="module" src="index.tsx" defer></script>
+</head>
+<body>
+    <nav class="main-nav">
+        <div class="container nav-container">
+            <div class="nav-left">
+                <a href="#" class="logo">NESMURTINĖ <span>KOMUNIKACIJA</span></a>
+            </div>
+            <div class="nav-links">
+                <button id="nav-reframer" class="active">Prašymai</button>
+                <button id="nav-practice">Praktika</button>
+                <button id="nav-map">Žemėlapis</button>
+                <button id="nav-guide">Metodika</button>
+                <button id="nav-vocab">Žodynas</button>
+            </div>
+            <div class="nav-right">
+                <a href="https://antakalnio.lt" target="_blank" class="school-link">Vilniaus Antakalnio progimnazija</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- REFRAMER SECTION -->
+        <section id="reframer-section" class="content-section active">
+            <header class="pdf-header">
+                <h1 class="pdf-title">Prašymai ir pavyzdžiai</h1>
+                <p class="pdf-subtitle">Konkretūs prašymai yra pasiūlymai poreikiams tenkinti. Juos išreiškiame klausimu.</p>
+            </header>
+
+            <div class="tool-grid">
+                <div class="card reframer-input-card">
+                    <label for="user-input" class="input-main-label">Jūsų mintis ar kritika</label>
+                    <textarea id="user-input" rows="3" placeholder="Pvz.: „Tu niekada manęs neklausai!“"></textarea>
+                    
+                    <div class="audience-selector">
+                        <span class="input-main-label">KAM SKIRTA ŽINUTĖ?</span>
+                        <div class="chip-group">
+                            <label class="radio-chip"><input type="radio" name="audience" value="child" checked><span>Mokiniui</span></label>
+                            <label class="radio-chip"><input type="radio" name="audience" value="parent"><span>Tėvams</span></label>
+                            <label class="radio-chip"><input type="radio" name="audience" value="colleague"><span>Kolegai</span></label>
+                        </div>
+                    </div>
+
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <span class="input-main-label">TONO INTENSYVUMAS (1-20)</span>
+                            <span id="intensity-value">Neutralus</span>
+                        </div>
+                        <input type="range" id="intensity-slider" min="1" max="20" value="10">
+                    </div>
+
+                    <button id="rephrase-button" class="btn btn-primary-dark full-width">Performuluoti dabar</button>
+                </div>
+
+                <div class="card result-card-green">
+                    <label class="input-main-label">DI PASIŪLYMAS</label>
+                    <div id="gemini-output">
+                        <p class="placeholder-text">Laukiama įvesties...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card comparison-card" style="margin-top: 4rem;">
+                <h3 style="margin-bottom: 1.5rem;">Aiškūs prašymai ir neaiškūs norai</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-box wish">
+                        <span class="label error" style="color: var(--error);">❌ NEAIŠKUS NORAS</span>
+                        <p>„Norėčiau, kad parodytum nors truputį pagarbos.“</p>
+                    </div>
+                    <div class="comparison-box req">
+                        <span class="label success" style="color: var(--success);">✅ AIŠKUS PRAŠYMAS</span>
+                        <p>„Man svarbi gera bendravimo atmosfera. Ar galėtum su manimi sveikintis kiekvieną rytą?“</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="example-library-section" style="margin-top: 4rem;">
+                <h2 class="section-title">Pavyzdžių biblioteka</h2>
+                <div class="example-tabs">
+                    <button class="ex-tab-btn active" data-target="mokiniai">Mokiniams</button>
+                    <button class="ex-tab-btn" data-target="mokytojai">Mokytojams</button>
+                    <button class="ex-tab-btn" data-target="tevams">Tėvams</button>
+                    <button class="ex-tab-btn" data-target="namams">Namams</button>
+                </div>
+                <div id="examples-content" class="examples-grid"></div>
+            </div>
+        </section>
+
+        <!-- PRACTICE SECTION -->
+        <section id="practice-section" class="content-section">
+            <header class="pdf-header">
+                <h1 class="pdf-title">Empatijos treniruotė</h1>
+                <p class="pdf-subtitle">Atpažinkite stebėjimus, jausmus ir poreikius.</p>
+            </header>
+            <div class="centered-content">
+                <div class="card practice-main-card" style="max-width: 600px; margin: 0 auto;">
+                    <div class="practice-welcome">
+                        <div class="icon-big" style="font-size: 4rem; text-align: center; margin-bottom: 1rem;">🎯</div>
+                        <h2 style="text-align: center; margin-bottom: 1.5rem;">Pasiruošę testui?</h2>
+                        <button id="game-control-button" class="btn btn-primary-dark full-width">Pradėti testą</button>
+                    </div>
+                    <div id="game-card" class="hidden"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONNECTION MAP SECTION -->
+        <section id="map-section" class="content-section">
+            <header class="pdf-header">
+                <h1 class="pdf-title">Ryšio žemėlapis</h1>
+                <p class="pdf-subtitle">Supraskite, koks poreikis slypi po jausmu.</p>
+            </header>
+            
+            <div class="map-search-container">
+                <input type="text" id="map-search-input" placeholder="Ieškoti jausmo ar poreikio..." class="search-input">
+            </div>
+
+            <div class="visual-map-container">
+                <div class="map-column">
+                    <h3 class="input-main-label centered" style="text-align: center; margin-bottom: 1rem;">Jausmas</h3>
+                    <div id="map-feelings-list" class="nodes-list"></div>
+                </div>
+                <div class="map-center">
+                    <div id="connection-bridge" class="bridge-card">
+                        <div id="bridge-text" class="placeholder-text">Pasirinkite jausmą...</div>
+                    </div>
+                </div>
+                <div class="map-column">
+                    <h3 class="input-main-label centered" style="text-align: center; margin-bottom: 1rem;">Poreikis</h3>
+                    <div id="map-needs-list" class="nodes-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- GUIDE SECTION -->
+        <section id="guide-section" class="content-section">
+            <header class="pdf-header">
+                <h1 class="pdf-title">Metodika</h1>
+                <div class="intro-box card" style="margin-top: 2rem; border-left: 6px solid var(--primary); background: #fdfdfd;">
+                  <p style="font-size: 1.1rem; color: var(--text-main);">Nesmurtinė komunikacija (NK) tai daugiau nei bendravimo technika – tai sąmoningumo praktika, leidžianti kurti ryšį, pagrįstą empatija ir nuoširdumu. NK moko išgirsti giliausius savo ir kitų poreikius, kurie slypi už žodžių ir veiksmų.</p>
+                </div>
+            </header>
+
+            <div class="detailed-guide-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; margin-top: 3rem;">
+                <div class="card step-card has-tooltip">
+                    <span class="step-badge">1</span>
+                    <h3>Stebėjimas</h3>
+                    <p class="step-q">Kas konkrečiai įvyko?</p>
+                    <div class="step-rule">
+                        <strong>Auksinė taisyklė</strong>
+                        <p>Įvardinkite tai, ką užfiksuotų vaizdo kamera.</p>
+                    </div>
+                    <div class="step-tooltip">
+                        Venkite vertinimų kaip „blogai“ ar apibendrinimų „visada“. Tik faktai.
+                    </div>
+                </div>
+                <div class="card step-card has-tooltip">
+                    <span class="step-badge">2</span>
+                    <h3>Jausmas</h3>
+                    <p class="step-q">Kaip aš jaučiuosi?</p>
+                    <div class="step-rule">
+                        <strong>Svarbu</strong>
+                        <p>Atskirkite jausmą nuo minčių ar veiksmų.</p>
+                    </div>
+                    <div class="step-tooltip">
+                        „Jaučiuosi neišklausytas“ yra mintis/kaltinimas. „Jaučiuosi nuliūdęs“ yra tikras jausmas.
+                    </div>
+                </div>
+                <div class="card step-card has-tooltip">
+                    <span class="step-badge">3</span>
+                    <h3>Poreikis</h3>
+                    <p class="step-q">Koks poreikis yra svarbus?</p>
+                    <div class="step-rule">
+                        <strong>Esmė</strong>
+                        <p>Poreikiai yra universalūs dalykai visiems žmonėms.</p>
+                    </div>
+                    <div class="step-tooltip">
+                        Saugumas, pagarba, poilsis – tai ne konkretūs veiksmai, o gilesnės vertybės.
+                    </div>
+                </div>
+                <div class="card step-card has-tooltip">
+                    <span class="step-badge">4</span>
+                    <h3>Prašymas</h3>
+                    <p class="step-q">Ką norėčiau, kad nutiktų?</p>
+                    <div class="step-rule">
+                        <strong>Tikslumas</strong>
+                        <p>Prašykite konkretaus, teigiamo veiksmo dabar.</p>
+                    </div>
+                    <div class="step-tooltip">
+                        Vietoj „nepalik netvarkos“ sakykite „Ar galėtum sudėti lėkštes į indaplovę?“.
+                    </div>
+                </div>
+            </div>
+
+            <!-- FLASH CARDS SECTION -->
+            <div class="flashcards-section" style="margin-top: 5rem;">
+                <h2 class="section-title">Jausmų ir poreikių ryšio pavyzdžiai</h2>
+                <p class="pdf-subtitle" style="text-align: center; margin-bottom: 2rem;">Užveskite pelę ant kortelės (arba paspauskite), kad pamatytumėte, koks poreikis slypi už jausmo.</p>
+                
+                <div class="example-tabs flashcard-nav" style="margin-bottom: 2rem;">
+                    <button class="ex-tab-btn active" data-fc-target="fc-mokiniai">Mokiniams</button>
+                    <button class="ex-tab-btn" data-fc-target="fc-mokytojai">Mokytojams</button>
+                    <button class="ex-tab-btn" data-fc-target="fc-tevai">Tėvams</button>
+                </div>
+
+                <div id="flashcards-container" class="flashcards-grid"></div>
+            </div>
+
+            <div class="needs-list-section" style="margin-top: 5rem;">
+                <h2 class="section-title">Poreikių sąrašas</h2>
+                <div id="needs-grid-container" class="needs-grid-layout"></div>
+            </div>
+
+            <div class="video-footer-card card" style="margin-top: 5rem; text-align: center;">
+                <p>Sukurta remiantis Nesmurtinės komunikacijos medžiaga, pagal Dr. Maršalą Rozenbergą.</p>
+                <a href="https://www.youtube.com/watch?v=2TvvniiNTk8" target="_blank" class="video-link" style="display: inline-block; margin-top: 1.5rem; color: var(--primary); font-weight: 800; border: 2px solid var(--primary); padding: 0.6rem 1.5rem; border-radius: 100px;">
+                    <span>📺</span> Žiūrėti video paskaitą
+                </a>
+            </div>
+        </section>
+
+        <!-- VOCABULARY SECTION -->
+        <section id="vocab-section" class="content-section">
+            <header class="pdf-header">
+                <h1 class="pdf-title">Žodynas</h1>
+                <p class="pdf-subtitle">Paspauskite ant žodžio, kad pamatytumėte pavyzdžius skirtinguose kontekstuose.</p>
+            </header>
+            <div id="vocab-display" class="card vocab-card"></div>
+        </section>
+    </main>
+
+    <!-- AI CHAT BOT WIDGET -->
+    <div id="chat-bot-container" class="chat-bot-widget">
+        <button id="chat-toggle-btn" class="chat-fab" title="Klauskite DI pagalbininko">💬</button>
+        <div id="chat-window" class="chat-window hidden">
+            <div class="chat-header">
+                <h3>Klauskite DI pagalbininko</h3>
+                <button id="chat-close-btn" class="chat-close-btn">&times;</button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <div class="bot-msg-bubble">Sveiki! Aš esu jūsų Nesmurtinės Komunikacijos asistentas. Kaip galiu jums padėti šiandien?</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-user-input" placeholder="Klauskite apie NK...">
+                <button id="chat-send-btn" class="chat-send-btn">➔</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div id="feeling-modal" class="modal-overlay hidden">
+        <div class="modal-card card">
+            <button id="close-modal" class="modal-close-btn">&times;</button>
+            <header class="modal-header">
+                <h2 id="modal-title">Jausmas</h2>
+                <div class="modal-need-badge">
+                    <strong>Galimas poreikis:</strong> <span id="modal-need"></span>
+                </div>
+            </header>
+            <div class="modal-body">
+                <p id="modal-desc" class="modal-main-desc"></p>
+                <div class="modal-context-grid">
+                    <div class="context-item">
+                        <span class="context-label">👶 Vaikui</span>
+                        <p id="modal-ex-child"></p>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">👤 Suaugusiam</span>
+                        <p id="modal-ex-adult"></p>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">💼 Darbe</span>
+                        <p id="modal-ex-pro"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container" style="text-align: center; padding: 4rem 0; border-top: 1px solid var(--border); margin-top: 5rem; color: var(--text-muted);">
+            <p>© 2026 Nesmurtinė komunikacija | <a href="https://antakalnio.lt" target="_blank" style="text-decoration: underline;">Vilniaus Antakalnio progimnazija</a></p>
+        </div>
+    </footer>
+</body>
+</html>

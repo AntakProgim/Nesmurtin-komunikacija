@@ -1,0 +1,6 @@
+{
+  "name": "Nesmurtinė komunikacija",
+  "description": "Interaktyvus įrankis, padedantis praktikuoti nesmurtinę komunikaciją, tyrinėti jausmus, poreikius ir formuluoti aiškius prašymus.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
