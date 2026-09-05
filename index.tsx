@@ -414,12 +414,16 @@ async function apiChat(text: string): Promise<string> {
 }
 
 function setupReframer() {
+  const exportBtn = document.getElementById('export-pdf-button');
+  
   document.getElementById('rephrase-button')?.addEventListener('click', async () => {
     const input = (document.getElementById('user-input') as HTMLTextAreaElement).value.trim();
     const output = document.getElementById('gemini-output');
     if (!input || !output) return;
 
     output.innerHTML = '<div class="loading-shimmer" style="height:100px; width:100%; border-radius:12px;"></div>';
+    if (exportBtn) exportBtn.style.display = 'none';
+
     try {
       const audience = (document.querySelector('input[name="audience"]:checked') as HTMLInputElement)?.value || 'child';
       const intensity = (document.getElementById('intensity-slider') as HTMLInputElement)?.value || '10';
@@ -427,10 +431,46 @@ function setupReframer() {
       
       const text = await apiRephrase(audience, intensityDesc, intensity, input);
       output.innerHTML = `<p class="output-text">${text}</p>`;
+      if (exportBtn) exportBtn.style.display = 'block';
     } catch (e: any) {
       console.error("Reframer error:", e);
       output.innerHTML = `<p class="error-msg">Įvyko klaida: ${e.message || 'Nepavyko susisiekti su serveriu.'}</p>`;
     }
+  });
+
+  exportBtn?.addEventListener('click', () => {
+    const outputText = document.querySelector('#gemini-output .output-text')?.innerHTML || '';
+    const printArea = document.getElementById('print-area');
+    if (!printArea) return;
+
+    const originalInput = (document.getElementById('user-input') as HTMLTextAreaElement).value;
+
+    printArea.innerHTML = `
+      <div class="print-header">Nesmurtinės komunikacijos performuluotas prašymas</div>
+      
+      <div class="print-section">
+        <h2>Pradinė mintis</h2>
+        <div class="print-text" style="font-style: italic; color: #555;">„${originalInput}“</div>
+      </div>
+
+      <div class="print-section">
+        <h2>DI Pasiūlymas</h2>
+        <div class="print-text" style="font-weight: 500;">${outputText}</div>
+      </div>
+
+      <div class="print-section">
+        <h2>Metodikos patarimai (4 NVC žingsniai)</h2>
+        <div class="print-text">
+          <ol style="margin-left: 20px; line-height: 1.6;">
+            <li><strong>Stebėjimas:</strong> Ką matau ar girdžiu (faktai be vertinimo). <em>Pvz.: "Matau nesuplautus indus..."</em></li>
+            <li><strong>Jausmas:</strong> Kaip dėl to jaučiuosi. <em>Pvz.: "...esu pavargęs ir nusivylęs..."</em></li>
+            <li><strong>Poreikis:</strong> Koks poreikis nepatenkintas. <em>Pvz.: "...nes man reikia tvarkos ir pagalbos."</em></li>
+            <li><strong>Prašymas:</strong> Konkretus ir įgyvendinamas prašymas. <em>Pvz.: "Ar galėtum suplauti indus per artimiausią pusvalandį?"</em></li>
+          </ol>
+        </div>
+      </div>
+    `;
+    window.print();
   });
 }
 
