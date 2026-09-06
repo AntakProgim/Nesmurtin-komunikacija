@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Svarbu: Ši taisyklė nukreipia visus puslapių prašymus į index.html (skirta React/SPA aplikacijoms)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
