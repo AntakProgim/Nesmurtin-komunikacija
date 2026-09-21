@@ -13,16 +13,34 @@ export default defineConfig(({ mode }) => {
         const app = express();
         app.use(express.json());
 
-        let ai: GoogleGenAI | null = null;
+        let currentKey = '';
+        let aiClient: GoogleGenAI | null = null;
+
         function getAiClient(): GoogleGenAI {
-          if (!ai) {
-            const apiKey = env.GEMINI_API_KEY || env.DEFAULT_API_KEY;
-            if (!apiKey) {
-              throw new Error('Missing GEMINI_API_KEY in environment variables.');
-            }
-            ai = new GoogleGenAI({ apiKey });
+          const rawKey = process.env.GEMINI_API_KEY || process.env.DEFAULT_API_KEY || env.GEMINI_API_KEY || env.DEFAULT_API_KEY || '';
+          const apiKey = typeof rawKey === 'string' ? rawKey.trim() : '';
+          if (!apiKey) {
+            throw new Error('Nenurodytas GEMINI_API_KEY. Nustatykite galiojantį API raktą nustatymų skiltyje (Secrets).');
           }
-          return ai;
+          if (!aiClient || currentKey !== apiKey) {
+            currentKey = apiKey;
+            aiClient = new GoogleGenAI({ apiKey });
+          }
+          return aiClient;
+        }
+
+        function formatError(error: any): string {
+          const msg = error?.message || '';
+          if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+            return 'Neteisingas arba negaliojantis Gemini API raktas. Įsitikinkite, kad nukopijavote visą raktą be klaidų, arba atnaujinkite jį Secrets nustatymuose.';
+          }
+          if (msg.includes('leaked')) {
+            return 'Jūsų API raktas buvo užblokuotas kaip nutekėjęs. Sukurkite naują raktą Google AI Studio ir atnaujinkite Secrets nustatymus.';
+          }
+          if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+            return 'Pasiektas užklausų limitas (kvota). Pabandykite šiek tiek vėliau.';
+          }
+          return msg || 'Nepavyko sugeneruoti atsakymo.';
         }
 
         app.post('/api/rephrase', async (req, res) => {
@@ -35,7 +53,7 @@ export default defineConfig(({ mode }) => {
 
             const client = getAiClient();
             const response = await client.models.generateContent({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-3.8-flash',
               contents: `Performuok šią kritiką į Nesmurtinės komunikacijos prašymą (stebėjimas, jausmas, poreikis, prašymas). Auditorija: ${audience}, Tonas (skalėje 1-20): ${intensity} (${intensityDesc}). Mintis: "${input}". Atsakyk tik prašymu.`,
               config: { systemInstruction: "Tu esi Nesmurtinės komunikacijos (NK) ekspertas." }
             });
@@ -43,7 +61,7 @@ export default defineConfig(({ mode }) => {
             res.json({ text: response.text });
           } catch (error: any) {
             console.error('Server rephrase error:', error);
-            res.status(500).json({ error: error.message || 'Nepavyko sugeneruoti atsakymo.' });
+            res.status(500).json({ error: formatError(error) });
           }
         });
 
@@ -57,7 +75,7 @@ export default defineConfig(({ mode }) => {
 
             const client = getAiClient();
             const response = await client.models.generateContent({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-3.8-flash',
               contents: messages,
               config: {
                 systemInstruction: 'Tu esi Nesmurtinės Komunikacijos (NK) ekspertas ir empatiškas mentorius. Padėk vartotojui suformuluoti prašymus, atpažinti jausmus ir poreikius. Kalbėk šiltai, palaikančiai, naudok lietuvių kalbą.',
@@ -67,7 +85,7 @@ export default defineConfig(({ mode }) => {
             res.json({ text: response.text });
           } catch (error: any) {
             console.error('Server chat error:', error);
-            res.status(500).json({ error: error.message || 'Nepavyko sugeneruoti pokalbio atsakymo.' });
+            res.status(500).json({ error: formatError(error) });
           }
         });
 
