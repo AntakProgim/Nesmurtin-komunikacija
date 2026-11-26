@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (default deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTemplateId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // --- Entity Validation Blueprints (Anti-Update-Gap) ---
+    function isValidTemplateStats(data) {
+      return data.keys().hasAll(['templateId', 'ratingSum', 'ratingCount', 'isPublic', 'updatedAt'])
+        && data.keys().hasOnly(['templateId', 'ratingSum', 'ratingCount', 'isPublic', 'updatedAt'])
+        && isValidTemplateId(data.templateId)
+        && data.ratingSum is int
+        && data.ratingSum >= 1
+        && data.ratingSum <= 10000000
+        && data.ratingCount is int
+        && data.ratingCount >= 1
+        && data.ratingCount <= 2000000
+        && data.ratingSum >= data.ratingCount
+        && data.ratingSum <= data.ratingCount * 5
+        && data.isPublic is bool
+        && data.isPublic == true
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTemplateRating(data) {
+      return data.keys().hasAll(['templateId', 'userId', 'stars', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['templateId', 'userId', 'stars', 'createdAt', 'updatedAt'])
+        && isValidTemplateId(data.templateId)
+        && isValidId(data.userId)
+        && data.userId == request.auth.uid
+        && data.stars is int
+        && data.stars >= 1
+        && data.stars <= 5
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection: /templateStats/{templateId} ---
+    // Public aggregate rating statistics (zero PII)
+    match /templateStats/{templateId} {
+      allow get: if isValidTemplateId(templateId);
+      allow list: if existing().isPublic == true;
+
+      allow create: if isVerifiedUser()
+        && isValidTemplateId(templateId)
+        && isValidTemplateStats(incoming())
+        && incoming().templateId == templateId
+        && incoming().updatedAt == request.time
+        && incoming().ratingCount == 1
+        && !exists(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid))
+        && incoming().ratingSum == getAfter(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid)).data.stars;
+
+      allow update: if isVerifiedUser()
+        && isValidTemplateId(templateId)
+        && isValidTemplateStats(incoming())
+        && incoming().templateId == existing().templateId
+        && incoming().isPublic == existing().isPublic
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['ratingSum', 'ratingCount', 'updatedAt'])
+        && (
+          // Action 1: First-time rating by this user
+          (
+            !exists(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid))
+            && incoming().ratingCount == existing().ratingCount + 1
+            && incoming().ratingSum == existing().ratingSum + getAfter(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid)).data.stars
+          )
+          ||
+          // Action 2: Updating an existing rating by this user
+          (
+            exists(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid))
+            && incoming().ratingCount == existing().ratingCount
+            && incoming().ratingSum == existing().ratingSum
+              - get(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid)).data.stars
+              + getAfter(/databases/$(database)/documents/templateRatings/$(templateId + '__' + request.auth.uid)).data.stars
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // --- Collection: /templateRatings/{ratingId} ---
+    // Individual user star ratings, deterministic ID: {templateId}__{userId}
+    match /templateRatings/{ratingId} {
+      allow get: if isSignedIn()
+        && isValidId(ratingId)
+        && (resource == null || existing().userId == request.auth.uid);
+
+      allow list: if isSignedIn()
+        && existing().userId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(ratingId)
+        && isValidTemplateRating(incoming())
+        && ratingId == incoming().templateId + '__' + request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/templateStats/$(incoming().templateId));
+
+      allow update: if isVerifiedUser()
+        && isValidId(ratingId)
+        && isValidTemplateRating(incoming())
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().templateId == existing().templateId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['stars', 'updatedAt'])
+        && existsAfter(/databases/$(database)/documents/templateStats/$(existing().templateId));
+
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "TemplateStats": {
+      "title": "TemplateStats",
+      "description": "Public aggregate star rating statistics for a letter template (contains no PII).",
+      "type": "object",
+      "properties": {
+        "templateId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identifier of the letter template."
+        },
+        "ratingSum": {
+          "type": "integer",
+          "description": "Sum of all star ratings (1-5 per rating)."
+        },
+        "ratingCount": {
+          "type": "integer",
+          "description": "Total number of user ratings submitted for this template."
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Explicit visibility flag allowing public list queries of aggregate stats."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last aggregate update."
+        }
+      },
+      "required": ["templateId", "ratingSum", "ratingCount", "isPublic", "updatedAt"]
+    },
+    "TemplateRating": {
+      "title": "TemplateRating",
+      "description": "An individual authenticated user's 1-5 star rating for a specific letter template. Document ID is deterministic: {templateId}__{userId}.",
+      "type": "object",
+      "properties": {
+        "templateId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identifier of the letter template being rated."
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Authenticated user UID who submitted the rating."
+        },
+        "stars": {
+          "type": "integer",
+          "description": "Star rating from 1 to 5."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the rating was first created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the rating was last updated."
+        }
+      },
+      "required": ["templateId", "userId", "stars", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/templateStats/{templateId}": {
+      "schema": { "$ref": "#/entities/TemplateStats" },
+      "description": "Public aggregate rating counters for each official letter template."
+    },
+    "/templateRatings/{ratingId}": {
+      "schema": { "$ref": "#/entities/TemplateRating" },
+      "description": "Per-user star ratings keyed by {templateId}__{userId} to enforce one rating per user per template."
+    }
+  }
+}

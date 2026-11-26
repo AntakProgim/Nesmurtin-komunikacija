@@ -4,22 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nesmurtinė komunikacija</title>
+    <meta name="description" content="Interaktyvus įrankis, padedantis praktikuoti nesmurtinę komunikaciją gyvuose pokalbiuose ir oficialiame susirašinėjime su institucijomis.">
+    <meta property="og:title" content="Nesmurtinė komunikacija">
+    <meta property="og:description" content="Interaktyvus įrankis, padedantis praktikuoti nesmurtinę komunikaciją gyvuose pokalbiuose ir oficialiame susirašinėjime su institucijomis.">
     <link rel="stylesheet" href="index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-      if (typeof process === 'undefined') {
-        window.process = { env: {} };
-      }
-    </script>
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/genai": "https://esm.sh/@google/genai@^0.7.0"
-        }
-      }
-    </script>
     <script type="module" src="index.tsx" defer></script>
 </head>
 <body>
@@ -30,13 +21,14 @@
             </div>
             <div class="nav-links">
                 <button id="nav-reframer" class="active">Prašymai</button>
+                <button id="nav-templates">Laiškų šablonai</button>
                 <button id="nav-practice">Praktika</button>
                 <button id="nav-map">Žemėlapis</button>
                 <button id="nav-guide">Metodika</button>
                 <button id="nav-vocab">Žodynas</button>
             </div>
             <div class="nav-right">
-                <a href="https://antakalnio.lt" target="_blank" class="school-link">Vilniaus Antakalnio progimnazija</a>
+                <a href="https://antakalnio.lt" target="_blank" rel="noopener noreferrer" class="school-link">Vilniaus Antakalnio progimnazija</a>
             </div>
         </div>
     </nav>
@@ -46,26 +38,41 @@
         <section id="reframer-section" class="content-section active">
             <header class="pdf-header">
                 <h1 class="pdf-title">Prašymai ir pavyzdžiai</h1>
-                <p class="pdf-subtitle">Konkretūs prašymai yra pasiūlymai poreikiams tenkinti. Juos išreiškiame klausimu.</p>
+                <p class="pdf-subtitle">Konkretūs prašymai padeda patenkinti poreikius tiek gyvame pokalbyje, tiek oficialiame susirašinėjime su institucijomis.</p>
             </header>
 
             <div class="tool-grid">
                 <div class="card reframer-input-card">
-                    <label for="user-input" class="input-main-label">Jūsų mintis ar kritika</label>
-                    <textarea id="user-input" rows="3" placeholder="Pvz.: „Tu niekada manęs neklausai!“"></textarea>
+                    <label for="user-input" class="input-main-label">Jūsų mintis, kritika ar laiško juodraštis</label>
+                    <textarea id="user-input" rows="4" placeholder="Pvz.: „Tu niekada manęs neklausai!“ arba „Savivaldybė jau mėnesį neatsako į mūsų raštą dėl perėjos!“"></textarea>
                     
                     <div class="audience-selector">
-                        <span class="input-main-label">KAM SKIRTA ŽINUTĖ?</span>
+                        <span class="input-main-label">Kam skirta žinutė?</span>
                         <div class="chip-group">
                             <label class="radio-chip"><input type="radio" name="audience" value="child" checked><span>Mokiniui</span></label>
                             <label class="radio-chip"><input type="radio" name="audience" value="parent"><span>Tėvams</span></label>
                             <label class="radio-chip"><input type="radio" name="audience" value="colleague"><span>Kolegai</span></label>
+                            <label class="radio-chip"><input type="radio" name="audience" value="institution"><span>Institucijai</span></label>
+                        </div>
+                    </div>
+
+                    <div class="format-selector">
+                        <span class="input-main-label">Komunikacijos formatas</span>
+                        <div class="segmented-control" role="radiogroup" aria-label="Komunikacijos formatas">
+                            <label class="segment-option">
+                                <input type="radio" name="comm-format" value="spoken" checked>
+                                <span>Pokalbis gyvai</span>
+                            </label>
+                            <label class="segment-option">
+                                <input type="radio" name="comm-format" value="written">
+                                <span>Oficialus laiškas / raštas</span>
+                            </label>
                         </div>
                     </div>
 
                     <div class="slider-container">
                         <div class="slider-header">
-                            <span class="input-main-label">TONO INTENSYVUMAS (1-20)</span>
+                            <span class="input-main-label">Tono intensyvumas (1–20)</span>
                             <span id="intensity-value">Neutralus</span>
                         </div>
                         <input type="range" id="intensity-slider" min="1" max="20" value="10">
@@ -75,24 +82,43 @@
                 </div>
 
                 <div class="card result-card-green">
-                    <label class="input-main-label">DI PASIŪLYMAS</label>
-                    <div id="gemini-output">
-                        <p class="placeholder-text">Laukiama įvesties...</p>
+                    <div class="result-card-header">
+                        <label class="input-main-label" style="margin-bottom: 0;">DI pasiūlymas</label>
+                        <span id="result-format-indicator" class="result-meta-text">Pokalbis gyvai</span>
                     </div>
-                    <button id="export-pdf-button" class="btn btn-primary full-width" style="margin-top: 1rem; display: none;">Eksportuoti į PDF</button>
+                    <div id="gemini-output">
+                        <p class="placeholder-text">Laukiama įvesties... Pasirinkite gavėją bei formatą ir paspauskite „Performuluoti dabar“.</p>
+                    </div>
+                    <div id="reframer-result-actions" class="result-actions-row hidden">
+                        <button id="copy-rephrase-button" class="btn btn-secondary">Kopijuoti tekstą</button>
+                        <button id="export-pdf-button" class="btn btn-primary-dark">Eksportuoti į PDF</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="card comparison-card" style="margin-top: 4rem;">
+            <div class="card comparison-card" style="margin-top: 3.5rem;">
                 <h3 style="margin-bottom: 1.5rem;">Aiškūs prašymai ir neaiškūs norai</h3>
+                <div class="comparison-group-label">Pokalbyje gyvai</div>
                 <div class="comparison-grid">
                     <div class="comparison-box wish">
-                        <span class="label error" style="color: var(--error);">❌ NEAIŠKUS NORAS</span>
+                        <span class="label error" style="color: var(--error);">✕ Neaiškus noras</span>
                         <p>„Norėčiau, kad parodytum nors truputį pagarbos.“</p>
                     </div>
                     <div class="comparison-box req">
-                        <span class="label success" style="color: var(--success);">✅ AIŠKUS PRAŠYMAS</span>
+                        <span class="label success" style="color: var(--success);">✓ Aiškus prašymas</span>
                         <p>„Man svarbi gera bendravimo atmosfera. Ar galėtum su manimi sveikintis kiekvieną rytą?“</p>
+                    </div>
+                </div>
+
+                <div class="comparison-group-label" style="margin-top: 1.75rem;">Susirašinėjime su institucija</div>
+                <div class="comparison-grid">
+                    <div class="comparison-box wish">
+                        <span class="label error" style="color: var(--error);">✕ Kaltinimas ir reikalavimas rašte</span>
+                        <p>„Jūsų įstaiga visiškai nesirūpina vaikų saugumu ir ignoruoja gyventojų prašymus! Reikalauju nedelsiant susitvarkyti.“</p>
+                    </div>
+                    <div class="comparison-box req">
+                        <span class="label success" style="color: var(--success);">✓ Konstruktyvus NK prašymas rašte</span>
+                        <p>„2026 m. spalio 14 d. pateikėme prašymą Nr. 142 dėl pėsčiųjų perėjos apšvietimo prie mokyklos, tačiau atsakymo dar negavome. Jaučiame nerimą dėl mokinių saugumo tamsiuoju paros metu. Prašome iki lapkričio 30 d. raštu informuoti apie numatomą darbų grafiką ir atsakingą specialistą.“</p>
                     </div>
                 </div>
             </div>
@@ -104,8 +130,107 @@
                     <button class="ex-tab-btn" data-target="mokytojai">Mokytojams</button>
                     <button class="ex-tab-btn" data-target="tevams">Tėvams</button>
                     <button class="ex-tab-btn" data-target="namams">Namams</button>
+                    <button class="ex-tab-btn" data-target="institucijos">Institucijoms</button>
                 </div>
                 <div id="examples-content" class="examples-grid"></div>
+            </div>
+        </section>
+
+        <!-- LETTER TEMPLATES SECTION -->
+        <section id="templates-section" class="content-section">
+            <header class="pdf-header">
+                <h1 class="pdf-title">Laiškų šablonai</h1>
+                <p class="pdf-subtitle">Paruošti struktūriniai pavyzdžiai oficialiam susirašinėjimui su institucijomis, taikant 4 NK žingsnius: faktus, jausmus, poreikius ir konkrečius prašymus.</p>
+            </header>
+
+            <div class="template-filters" id="template-category-tabs" role="tablist" aria-label="Laiškų kategorijos">
+                <button class="ex-tab-btn active" data-tpl-cat="all">Visi šablonai</button>
+                <button class="ex-tab-btn" data-tpl-cat="svietimas">Švietimas ir mokykla</button>
+                <button class="ex-tab-btn" data-tpl-cat="savivaldybe">Savivaldybė ir aplinka</button>
+                <button class="ex-tab-btn" data-tpl-cat="paslaugos">Viešosios paslaugos</button>
+                <button class="ex-tab-btn" data-tpl-cat="velavimas">Atsakymų vėlavimas</button>
+                <button class="ex-tab-btn" data-tpl-cat="padeka">Padėka ir dialogas</button>
+            </div>
+
+            <div class="templates-workspace">
+                <aside class="templates-sidebar" aria-label="Šablonų sąrašas">
+                    <div id="templates-list" class="templates-list"></div>
+                </aside>
+
+                <div class="template-detail-panel card">
+                    <div class="template-detail-header">
+                        <div>
+                            <h2 id="tpl-detail-title" class="tpl-detail-title">Pasirinkite šabloną</h2>
+                            <div id="tpl-detail-meta" class="tpl-detail-meta"></div>
+                        </div>
+                        <div class="segmented-control tpl-view-toggle" role="tablist" aria-label="Rodymo režimas">
+                            <button type="button" id="tpl-mode-structured" class="segment-btn active">NK struktūra</button>
+                            <button type="button" id="tpl-mode-editor" class="segment-btn">Redaguoti laišką</button>
+                        </div>
+                    </div>
+
+                    <div class="template-quickfill">
+                        <div class="quickfill-field">
+                            <label for="qf-institution">Institucija / gavėjas</label>
+                            <input type="text" id="qf-institution" placeholder="Pvz., Vilniaus miesto savivaldybės administracijai">
+                        </div>
+                        <div class="quickfill-field">
+                            <label for="qf-sender">Jūsų vardas / pareigos</label>
+                            <input type="text" id="qf-sender" placeholder="Pvz., Vardenis Pavardenis, mokyklos tėvų atstovas">
+                        </div>
+                        <div class="quickfill-field">
+                            <label for="qf-date">Data</label>
+                            <input type="text" id="qf-date" placeholder="Pvz., 2026 m. lapkričio 26 d.">
+                        </div>
+                    </div>
+
+                    <div id="tpl-structured-view" class="tpl-structured-view"></div>
+
+                    <div id="tpl-editor-view" class="tpl-editor-view hidden">
+                        <div class="editor-field-group">
+                            <label for="tpl-subject-input" class="input-main-label">Laiško tema</label>
+                            <input type="text" id="tpl-subject-input" class="text-input">
+                        </div>
+                        <div class="editor-field-group">
+                            <div class="editor-label-row">
+                                <label for="tpl-body-textarea" class="input-main-label" style="margin-bottom: 0;">Laiško tekstas</label>
+                                <button type="button" id="tpl-reset-btn" class="text-link-btn">Atstatyti šabloną</button>
+                            </div>
+                            <textarea id="tpl-body-textarea" rows="13"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="tpl-actions-bar">
+                        <button type="button" id="copy-template-btn" class="btn btn-primary-dark">Kopijuoti laišką</button>
+                        <button type="button" id="send-template-to-reframer-btn" class="btn btn-secondary">Pritaikyti toną su DI</button>
+                        <button type="button" id="print-template-btn" class="btn btn-outline-sm">Spausdinti / PDF</button>
+                    </div>
+
+                    <div class="tpl-checklist-box">
+                        <div class="tpl-checklist-header">
+                            <h4>Patikros sąrašas prieš siunčiant institucijai</h4>
+                            <span id="tpl-checklist-progress" class="tpl-checklist-count">0 / 4 patikrinta</span>
+                        </div>
+                        <div class="tpl-checklist-grid">
+                            <label class="checklist-item">
+                                <input type="checkbox" class="tpl-check-input">
+                                <span>Faktai aprašyti neutraliai – be kaltinimų, etikečių ir apibendrinimų („visada“, „niekada“).</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" class="tpl-check-input">
+                                <span>Įrašytos tikslios datos, ankstesnių raštų numeriai ar vietos detalės.</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" class="tpl-check-input">
+                                <span>Įvardytas bendras poreikis (saugumas, skaidrumas, aiškumas), o ne asmeninis priekaištas.</span>
+                            </label>
+                            <label class="checklist-item">
+                                <input type="checkbox" class="tpl-check-input">
+                                <span>Suformuluotas konkretus, įgyvendinamas prašymas su aiškiu terminu ir kontaktiniais duomenimis.</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -113,14 +238,18 @@
         <section id="practice-section" class="content-section">
             <header class="pdf-header">
                 <h1 class="pdf-title">Empatijos treniruotė</h1>
-                <p class="pdf-subtitle">Atpažinkite stebėjimus, jausmus ir poreikius.</p>
+                <p class="pdf-subtitle">Atpažinkite stebėjimus, jausmus, poreikius ir prašymus tiek pokalbiuose, tiek raštuose institucijoms.</p>
             </header>
             <div class="centered-content">
-                <div class="card practice-main-card" style="max-width: 600px; margin: 0 auto;">
+                <div class="card practice-main-card" style="max-width: 640px; margin: 0 auto;">
                     <div class="practice-welcome">
-                        <div class="icon-big" style="font-size: 4rem; text-align: center; margin-bottom: 1rem;">🎯</div>
-                        <h2 style="text-align: center; margin-bottom: 1.5rem;">Pasiruošę testui?</h2>
-                        <button id="game-control-button" class="btn btn-primary-dark full-width">Pradėti testą</button>
+                        <div class="icon-big" style="font-size: 3.5rem; text-align: center; margin-bottom: 1rem;">🎯</div>
+                        <h2 style="text-align: center; margin-bottom: 0.75rem;">Pasiruošę testui?</h2>
+                        <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.75rem;">Pasirinkite treniruotės kryptį – 10 atsitiktinių klausimų su paaiškinimais po kiekvieno atsakymo.</p>
+                        <div class="practice-mode-buttons">
+                            <button id="game-control-button" class="btn btn-primary-dark full-width">Mišrus testas (pokalbiai ir institucijos)</button>
+                            <button id="game-institution-button" class="btn btn-secondary full-width">Tik susirašinėjimas su institucijomis</button>
+                        </div>
                     </div>
                     <div id="game-card" class="hidden"></div>
                 </div>
@@ -131,7 +260,7 @@
         <section id="map-section" class="content-section">
             <header class="pdf-header">
                 <h1 class="pdf-title">Ryšio žemėlapis</h1>
-                <p class="pdf-subtitle">Supraskite, koks poreikis slypi po jausmu.</p>
+                <p class="pdf-subtitle">Supraskite, koks poreikis slypi po jausmu – tai padeda aiškiau kalbėti ir rašyti oficialius kreipimusis.</p>
             </header>
             
             <div class="map-search-container">
@@ -159,58 +288,118 @@
         <section id="guide-section" class="content-section">
             <header class="pdf-header">
                 <h1 class="pdf-title">Metodika</h1>
-                <div class="intro-box card" style="margin-top: 2rem; border-left: 6px solid var(--primary); background: #fdfdfd;">
-                  <p style="font-size: 1.1rem; color: var(--text-main);">Nesmurtinė komunikacija (NK) tai daugiau nei bendravimo technika – tai sąmoningumo praktika, leidžianti kurti ryšį, pagrįstą empatija ir nuoširdumu. NK moko išgirsti giliausius savo ir kitų poreikius, kurie slypi už žodžių ir veiksmų.</p>
+                <div class="intro-box card" style="margin-top: 2rem; background: #fdfdfd;">
+                  <p style="font-size: 1.05rem; color: var(--text-main);">Nesmurtinė komunikacija (NK) – tai sąmoningo bendravimo praktika, padedanti kurti ryšį, pagrįstą aiškumu, empatija ir abipuse pagarba. Ji veiksminga ne tik kasdieniuose pokalbiuose mokykloje ar šeimoje, bet ir <strong>oficialiame susirašinėjime su institucijomis</strong> – kai reikia spręsti problemas be kaltinimų, aiškiai pagrįsti bendruomenės poreikius ir sulaukti konkrečių sprendimų.</p>
                 </div>
             </header>
 
-            <div class="detailed-guide-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; margin-top: 3rem;">
+            <div class="detailed-guide-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.75rem; margin-top: 3rem;">
                 <div class="card step-card has-tooltip">
                     <span class="step-badge">1</span>
-                    <h3>Stebėjimas</h3>
+                    <h3>Stebėjimas (Faktai)</h3>
                     <p class="step-q">Kas konkrečiai įvyko?</p>
                     <div class="step-rule">
-                        <strong>Auksinė taisyklė</strong>
-                        <p>Įvardinkite tai, ką užfiksuotų vaizdo kamera.</p>
+                        <strong>Pokalbyje</strong>
+                        <p>Įvardykite tai, ką užfiksuotų vaizdo kamera – be etikečių.</p>
+                    </div>
+                    <div class="step-rule step-rule-inst">
+                        <strong>Rašant institucijai</strong>
+                        <p>Nurodykite tikslias datas, dokumentų numerius, vietas ir įvykių eigą be kaltinimų.</p>
                     </div>
                     <div class="step-tooltip">
-                        Venkite vertinimų kaip „blogai“ ar apibendrinimų „visada“. Tik faktai.
+                        Venkite vertinimų „aplaidus darbas“ ar „ignoruojate“. Rašykite: „Per 15 d. d. atsakymo negavome.“
                     </div>
                 </div>
                 <div class="card step-card has-tooltip">
                     <span class="step-badge">2</span>
-                    <h3>Jausmas</h3>
-                    <p class="step-q">Kaip aš jaučiuosi?</p>
+                    <h3>Jausmas / Poveikis</h3>
+                    <p class="step-q">Kaip tai veikia mus?</p>
                     <div class="step-rule">
-                        <strong>Svarbu</strong>
-                        <p>Atskirkite jausmą nuo minčių ar veiksmų.</p>
+                        <strong>Pokalbyje</strong>
+                        <p>Atskirkite tikrą jausmą nuo minčių ar interpretacijų.</p>
+                    </div>
+                    <div class="step-rule step-rule-inst">
+                        <strong>Rašant institucijai</strong>
+                        <p>Rinkitės dalykišką emocinę kalbą: „jaučiame susirūpinimą“, „kyla nerimas“, „esame sutrikę“.</p>
                     </div>
                     <div class="step-tooltip">
-                        „Jaučiuosi neišklausytas“ yra mintis/kaltinimas. „Jaučiuosi nuliūdęs“ yra tikras jausmas.
+                        Oficialiame rašte emocija parodo žmogišką problemos svarbą, neperžengiant profesinio tono ribų.
                     </div>
                 </div>
                 <div class="card step-card has-tooltip">
                     <span class="step-badge">3</span>
-                    <h3>Poreikis</h3>
-                    <p class="step-q">Koks poreikis yra svarbus?</p>
+                    <h3>Poreikis / Vertybė</h3>
+                    <p class="step-q">Kas mums svarbu?</p>
                     <div class="step-rule">
-                        <strong>Esmė</strong>
-                        <p>Poreikiai yra universalūs dalykai visiems žmonėms.</p>
+                        <strong>Pokalbyje</strong>
+                        <p>Įvardykite universalų poreikį: pagarba, ramybė, ryšys, saugumas.</p>
+                    </div>
+                    <div class="step-rule step-rule-inst">
+                        <strong>Rašant institucijai</strong>
+                        <p>Susiekite su bendruoju interesu: vaikų saugumas, skaidrumas, aiškumas, pasitikėjimas.</p>
                     </div>
                     <div class="step-tooltip">
-                        Saugumas, pagarba, poilsis – tai ne konkretūs veiksmai, o gilesnės vertybės.
+                        Institucijos dažniausiai dalijasi tais pačiais pamatiniais poreikiais – saugumu, tvarka ir aiškumu.
                     </div>
                 </div>
                 <div class="card step-card has-tooltip">
                     <span class="step-badge">4</span>
                     <h3>Prašymas</h3>
-                    <p class="step-q">Ką norėčiau, kad nutiktų?</p>
+                    <p class="step-q">Kokio sprendimo prašome?</p>
                     <div class="step-rule">
-                        <strong>Tikslumas</strong>
-                        <p>Prašykite konkretaus, teigiamo veiksmo dabar.</p>
+                        <strong>Pokalbyje</strong>
+                        <p>Prašykite konkretaus, teigiamo veiksmo dabar klausimo forma.</p>
+                    </div>
+                    <div class="step-rule step-rule-inst">
+                        <strong>Rašant institucijai</strong>
+                        <p>Nurodykite konkretų veiksmą, realų atsakymo terminą ir pageidaujamą atsakymo būdą.</p>
                     </div>
                     <div class="step-tooltip">
-                        Vietoj „nepalik netvarkos“ sakykite „Ar galėtum sudėti lėkštes į indaplovę?“.
+                        Vietoj „imkitės priemonių“ rašykite: „Prašome iki [data] el. paštu pateikti numatomą darbų grafiką.“
+                    </div>
+                </div>
+            </div>
+
+            <!-- INSTITUTIONAL CORRESPONDENCE GUIDE -->
+            <div class="card inst-guide-card" style="margin-top: 3.5rem;">
+                <div class="inst-guide-header">
+                    <div>
+                        <h2 style="color: var(--primary-dark); font-size: 1.5rem; margin-bottom: 0.4rem;">Pokalbis gyvai ir susirašinėjimas su institucijomis</h2>
+                        <p style="color: var(--text-muted); font-size: 0.95rem;">Kaip skiriasi NK pritaikymas kalbantis akis į akį ir rašant oficialų laišką savivaldybei, mokyklos administracijai ar valstybinei įstaigai.</p>
+                    </div>
+                    <button type="button" id="guide-open-templates-btn" class="btn btn-primary-dark" style="white-space: nowrap;">Atidaryti laiškų šablonus</button>
+                </div>
+
+                <div class="inst-comparison-table">
+                    <div class="inst-row inst-row-head">
+                        <div>NK elementas</div>
+                        <div>Pokalbyje gyvai</div>
+                        <div>Susirašinėjime su institucija</div>
+                    </div>
+                    <div class="inst-row">
+                        <div class="inst-row-aspect">Faktai ir kontekstas</div>
+                        <div>Trumpas tiesioginis stebėjimas apie tai, kas vyksta dabar („Pastebėjau, kad atėjai 10 min. vėliau“).</div>
+                        <div>Chronologiniai faktai su datomis, registracijos numeriais, adresais ir nuorodomis į ankstesnius susitarimus.</div>
+                    </div>
+                    <div class="inst-row">
+                        <div class="inst-row-aspect">Jausmų raiška</div>
+                        <div>Asmeniška ir tiesioginė („Jaučiuosi liūdnas, pavargęs, sunerimęs“).</div>
+                        <div>Santūri, dalykiška ir parodanti poveikį bendruomenei („Jaučiame nerimą“, „Esame susirūpinę“, „Vertiname sklandų dialogą“).</div>
+                    </div>
+                    <div class="inst-row">
+                        <div class="inst-row-aspect">Poreikių lygmuo</div>
+                        <div>Asmeniniai ar tarpasmeniniai poreikiai (ryšys, poilsis, pagarba, bendradarbiavimas).</div>
+                        <div>Viešasis ir bendruomeninis interesas (mokinių saugumas, informacijos skaidrumas, lygiateisiškumas, nuspėjamumas).</div>
+                    </div>
+                    <div class="inst-row">
+                        <div class="inst-row-aspect">Prašymo tikslumas</div>
+                        <div>Atviras klausimas apie artimiausią žingsnį („Ar galėtum šiandien...?“).</div>
+                        <div>Konkretus pageidaujamas sprendimas, atsakymo forma (raštu / susitikimas), realus terminas ir jūsų kontaktai.</div>
+                    </div>
+                    <div class="inst-row">
+                        <div class="inst-row-aspect">Tonas ir struktūra</div>
+                        <div>Natūrali šnekamoji kalba, galimybė iškart pasitikslinti ir išklausyti kitą pusę.</div>
+                        <div>Aiški el. laiško tema, trumpa pastraipų struktūra (1 žingsnis – 1 mintis), mandagus kreipinys ir atsisveikinimas.</div>
                     </div>
                 </div>
             </div>
@@ -224,6 +413,7 @@
                     <button class="ex-tab-btn active" data-fc-target="fc-mokiniai">Mokiniams</button>
                     <button class="ex-tab-btn" data-fc-target="fc-mokytojai">Mokytojams</button>
                     <button class="ex-tab-btn" data-fc-target="fc-tevai">Tėvams</button>
+                    <button class="ex-tab-btn" data-fc-target="fc-institucijos">Institucijoms</button>
                 </div>
 
                 <div id="flashcards-container" class="flashcards-grid"></div>
@@ -236,7 +426,7 @@
 
             <div class="video-footer-card card" style="margin-top: 5rem; text-align: center;">
                 <p>Sukurta remiantis Nesmurtinės komunikacijos medžiaga, pagal Dr. Maršalą Rozenbergą.</p>
-                <a href="https://www.youtube.com/watch?v=2TvvniiNTk8" target="_blank" class="video-link" style="display: inline-block; margin-top: 1.5rem; color: var(--primary); font-weight: 800; border: 2px solid var(--primary); padding: 0.6rem 1.5rem; border-radius: 100px;">
+                <a href="https://www.youtube.com/watch?v=2TvvniiNTk8" target="_blank" rel="noopener noreferrer" class="video-link" style="display: inline-block; margin-top: 1.5rem; color: var(--primary); font-weight: 800; border: 2px solid var(--primary); padding: 0.6rem 1.5rem; border-radius: 100px;">
                     <span>📺</span> Žiūrėti video paskaitą
                 </a>
             </div>
@@ -246,7 +436,7 @@
         <section id="vocab-section" class="content-section">
             <header class="pdf-header">
                 <h1 class="pdf-title">Žodynas</h1>
-                <p class="pdf-subtitle">Paspauskite ant žodžio, kad pamatytumėte pavyzdžius skirtinguose kontekstuose.</p>
+                <p class="pdf-subtitle">Paspauskite ant žodžio, kad pamatytumėte pavyzdžius pokalbiuose ir laiškuose institucijoms.</p>
             </header>
             <div id="vocab-display" class="card vocab-card"></div>
         </section>
@@ -261,10 +451,10 @@
                 <button id="chat-close-btn" class="chat-close-btn">&times;</button>
             </div>
             <div id="chat-messages" class="chat-messages">
-                <div class="bot-msg-bubble">Sveiki! Aš esu jūsų Nesmurtinės Komunikacijos asistentas. Kaip galiu jums padėti šiandien?</div>
+                <div class="bot-msg-bubble">Sveiki! Esu jūsų Nesmurtinės Komunikacijos asistentas. Padėsiu pasiruošti tiek svarbiam pokalbiui, tiek oficialiam laiškui ar raštui institucijai. Kuo galiu padėti?</div>
             </div>
             <div class="chat-input-area">
-                <input type="text" id="chat-user-input" placeholder="Klauskite apie NK...">
+                <input type="text" id="chat-user-input" placeholder="Klauskite apie pokalbį ar laišką institucijai...">
                 <button id="chat-send-btn" class="chat-send-btn">➔</button>
             </div>
         </div>
@@ -295,6 +485,10 @@
                         <span class="context-label">💼 Darbe</span>
                         <p id="modal-ex-pro"></p>
                     </div>
+                    <div class="context-item">
+                        <span class="context-label">🏛️ Laiške institucijai</span>
+                        <p id="modal-ex-inst"></p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -304,7 +498,7 @@
 
     <footer>
         <div class="container" style="text-align: center; padding: 4rem 0; border-top: 1px solid var(--border); margin-top: 5rem; color: var(--text-muted);">
-            <p>© 2026 Nesmurtinė komunikacija | <a href="https://antakalnio.lt" target="_blank" style="text-decoration: underline;">Vilniaus Antakalnio progimnazija</a></p>
+            <p>© 2026 Nesmurtinė komunikacija | <a href="https://antakalnio.lt" target="_blank" rel="noopener noreferrer" style="text-decoration: underline;">Vilniaus Antakalnio progimnazija</a></p>
         </div>
     </footer>
 </body>

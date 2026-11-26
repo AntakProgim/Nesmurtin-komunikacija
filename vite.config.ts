@@ -24,7 +24,14 @@ export default defineConfig(({ mode }) => {
           }
           if (!aiClient || currentKey !== apiKey) {
             currentKey = apiKey;
-            aiClient = new GoogleGenAI({ apiKey });
+            aiClient = new GoogleGenAI({
+              apiKey,
+              httpOptions: {
+                headers: {
+                  'User-Agent': 'aistudio-build',
+                },
+              },
+            });
           }
           return aiClient;
         }
@@ -43,19 +50,61 @@ export default defineConfig(({ mode }) => {
           return msg || 'Nepavyko sugeneruoti atsakymo.';
         }
 
+        const audienceMap: Record<string, string> = {
+          child: 'Mokinys arba vaikas',
+          parent: 'Tėvai arba globėjai',
+          colleague: 'Kolega arba mokytojas',
+          institution: 'Institucija (savivaldybė, ministerija, įstaiga, administracija)',
+        };
+
+        function buildRephrasePrompt(audience: string, format: string, intensity: string, intensityDesc: string, input: string): string {
+          const audienceLabel = audienceMap[audience] || audience || 'Pašnekovas';
+          const isWritten = format === 'written' || audience === 'institution';
+
+          if (isWritten) {
+            return `Performuok šią kritiką, problemą ar juodraštį į konstruktyvų oficialų el. laišką arba raštą pagal Nesmurtinės komunikacijos (NK) principus.
+Gavėjas: ${audienceLabel}
+Formatas: Oficialus susirašinėjimas (el. laiškas / raštas)
+Tonas (skalėje 1-20): ${intensity} (${intensityDesc}) – išlaikyk dalykišką, pagarbų, nesmurtinį stilių.
+
+Struktūra:
+- Tema: trumpa, neutrali ir aiški laiško tema
+- Mandagus kreipinys
+- Faktai (stebėjimas): neutraliai išdėstyti faktai be kaltinimų ar etikečių (jei trūksta datos ar rašto numerio, palik vietą laužtiniuose skliaustuose, pvz. [data])
+- Jausmas / poveikis: profesionali, institucijai tinkama formuluotė (pvz., „jaučiame susirūpinimą“, „kyla nerimas“, „mums svarbu“)
+- Poreikis: bendras visuotinis poreikis (saugumas, aiškumas, skaidrumas, bendradarbiavimas, pasitikėjimas)
+- Prašymas: konkretus, įgyvendinamas veiksmas ir aiškus pageidaujamas terminas ar atsakymo forma
+- Mandagus atsisveikinimas
+
+Pradinė mintis: "${input}"
+
+Atsakyk tik paruoštu laiško tekstu lietuvių kalba, be papildomų įžanginių ar baigiamųjų komentarų.`;
+          }
+
+          return `Performuok šią kritiką į Nesmurtinės komunikacijos (NK) žodinį prašymą (stebėjimas, jausmas, poreikis, konkretus prašymas klausimu).
+Auditorija: ${audienceLabel}
+Formatas: Žodinis pokalbis
+Tonas (skalėje 1-20): ${intensity} (${intensityDesc})
+Pradinė mintis: "${input}"
+
+Atsakyk tik performuluotu prašymu lietuvių kalba, be papildomų komentarų.`;
+        }
+
         app.post('/api/rephrase', async (req, res) => {
           try {
-            const { audience, intensityDesc, intensity, input } = req.body;
+            const { audience, format = 'spoken', intensityDesc, intensity, input } = req.body;
             if (!input) {
-              res.status(400).json({ error: 'Input text is required' });
+              res.status(400).json({ error: 'Prašome įvesti tekstą.' });
               return;
             }
 
             const client = getAiClient();
             const response = await client.models.generateContent({
-              model: 'gemini-3.8-flash',
-              contents: `Performuok šią kritiką į Nesmurtinės komunikacijos prašymą (stebėjimas, jausmas, poreikis, prašymas). Auditorija: ${audience}, Tonas (skalėje 1-20): ${intensity} (${intensityDesc}). Mintis: "${input}". Atsakyk tik prašymu.`,
-              config: { systemInstruction: "Tu esi Nesmurtinės komunikacijos (NK) ekspertas." }
+              model: 'gemini-4-hydrogen',
+              contents: buildRephrasePrompt(audience, format, intensity, intensityDesc, input),
+              config: {
+                systemInstruction: 'Tu esi Nesmurtinės komunikacijos (NK) ekspertas. Puikiai išmanai tiek kasdienius pokalbius (su vaikais, tėvais, kolegomis), tiek oficialų dalykinį susirašinėjimą su institucijomis (savivaldybėmis, mokyklų administracijomis, valstybinėmis įstaigomis) pagal NK principus.',
+              },
             });
 
             res.json({ text: response.text });
@@ -75,11 +124,11 @@ export default defineConfig(({ mode }) => {
 
             const client = getAiClient();
             const response = await client.models.generateContent({
-              model: 'gemini-3.8-flash',
+              model: 'gemini-4-hydrogen',
               contents: messages,
               config: {
-                systemInstruction: 'Tu esi Nesmurtinės Komunikacijos (NK) ekspertas ir empatiškas mentorius. Padėk vartotojui suformuluoti prašymus, atpažinti jausmus ir poreikius. Kalbėk šiltai, palaikančiai, naudok lietuvių kalbą.',
-              }
+                systemInstruction: 'Tu esi Nesmurtinės Komunikacijos (NK) ekspertas ir empatiškas mentorius. Padėk vartotojui suformuluoti prašymus, atpažinti jausmus ir poreikius tiek gyvuose pokalbiuose (šeimoje, mokykloje, darbe), tiek oficialiame susirašinėjime su institucijomis (el. laiškuose, raštuose, kreipimuose į savivaldybę, ministerijas ar įstaigas). Kai vartotojas klausia apie raštą institucijai, patark, kaip neutraliai pateikti faktus su datomis, profesionaliai įvardyti poveikį/susirūpinimą, bendrą poreikį ir suformuluoti konkretų prašymą su terminu. Kalbėk šiltai, aiškiai, palaikančiai, naudok taisyklingą lietuvių kalbą.',
+              },
             });
 
             res.json({ text: response.text });
@@ -99,10 +148,6 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [apiPlugin],
-      define: {
-        'process.env.DEFAULT_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
