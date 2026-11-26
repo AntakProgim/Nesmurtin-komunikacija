@@ -93,6 +93,37 @@
                         <button id="copy-rephrase-button" class="btn btn-secondary">Kopijuoti tekstą</button>
                         <button id="export-pdf-button" class="btn btn-primary-dark">Eksportuoti į PDF</button>
                     </div>
+
+                    <!-- D3 TEXT ANALYSIS DONUT PANEL -->
+                    <div id="text-analysis-panel" class="text-analysis-panel hidden" aria-live="polite">
+                        <div class="analysis-panel-header">
+                            <div>
+                                <div class="analysis-title">Jūsų teksto NK balanso analizė</div>
+                                <div id="analysis-source-meta" class="analysis-meta">Preliminari analizė rašant</div>
+                            </div>
+                        </div>
+                        <div class="analysis-body">
+                            <div id="nvc-donut-container" class="donut-chart-slot"></div>
+                            <div class="analysis-legend">
+                                <div class="legend-row">
+                                    <span class="legend-swatch" style="background: #475569;"></span>
+                                    <span class="legend-label">Faktai (stebėjimas)</span>
+                                    <strong id="legend-facts-pct" class="legend-pct">0%</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span class="legend-swatch" style="background: #d97706;"></span>
+                                    <span class="legend-label">Jausmai (emocijos)</span>
+                                    <strong id="legend-feelings-pct" class="legend-pct">0%</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span class="legend-swatch" style="background: #3a5a40;"></span>
+                                    <span class="legend-label">Poreikiai (vertybės)</span>
+                                    <strong id="legend-needs-pct" class="legend-pct">0%</strong>
+                                </div>
+                                <p id="analysis-summary-text" class="analysis-summary"></p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -140,16 +171,22 @@
         <section id="templates-section" class="content-section">
             <header class="pdf-header">
                 <h1 class="pdf-title">Laiškų šablonai</h1>
-                <p class="pdf-subtitle">Paruošti struktūriniai pavyzdžiai oficialiam susirašinėjimui su institucijomis, taikant 4 NK žingsnius: faktus, jausmus, poreikius ir konkrečius prašymus.</p>
+                <p class="pdf-subtitle">Paruošti struktūriniai pavyzdžiai oficialiam susirašinėjimui su institucijomis pagal 4 NK žingsnius. Įvertinkite pasiteisinusius šablonus žvaigždutėmis, kad padėtumėte kitiems.</p>
             </header>
 
-            <div class="template-filters" id="template-category-tabs" role="tablist" aria-label="Laiškų kategorijos">
-                <button class="ex-tab-btn active" data-tpl-cat="all">Visi šablonai</button>
-                <button class="ex-tab-btn" data-tpl-cat="svietimas">Švietimas ir mokykla</button>
-                <button class="ex-tab-btn" data-tpl-cat="savivaldybe">Savivaldybė ir aplinka</button>
-                <button class="ex-tab-btn" data-tpl-cat="paslaugos">Viešosios paslaugos</button>
-                <button class="ex-tab-btn" data-tpl-cat="velavimas">Atsakymų vėlavimas</button>
-                <button class="ex-tab-btn" data-tpl-cat="padeka">Padėka ir dialogas</button>
+            <div class="templates-toolbar">
+                <div class="template-filters" id="template-category-tabs" role="tablist" aria-label="Laiškų kategorijos">
+                    <button class="ex-tab-btn active" data-tpl-cat="all">Visi šablonai</button>
+                    <button class="ex-tab-btn" data-tpl-cat="svietimas">Švietimas ir mokykla</button>
+                    <button class="ex-tab-btn" data-tpl-cat="savivaldybe">Savivaldybė ir aplinka</button>
+                    <button class="ex-tab-btn" data-tpl-cat="paslaugos">Viešosios paslaugos</button>
+                    <button class="ex-tab-btn" data-tpl-cat="velavimas">Atsakymų vėlavimas</button>
+                    <button class="ex-tab-btn" data-tpl-cat="padeka">Padėka ir dialogas</button>
+                </div>
+                <div class="segmented-control tpl-sort-control" role="tablist" aria-label="Rikiavimas">
+                    <button type="button" id="tpl-sort-rating" class="segment-btn active">Geriausiai įvertinti</button>
+                    <button type="button" id="tpl-sort-default" class="segment-btn">Pagal kategoriją</button>
+                </div>
             </div>
 
             <div class="templates-workspace">
@@ -168,6 +205,27 @@
                             <button type="button" id="tpl-mode-editor" class="segment-btn">Redaguoti laišką</button>
                         </div>
                     </div>
+
+                    <!-- COMMUNITY STAR RATING BAR -->
+                    <div class="tpl-rating-bar" aria-label="Šablono įvertinimas žvaigždutėmis">
+                        <div class="tpl-rating-summary">
+                            <span class="tpl-rating-avg-star" aria-hidden="true">★</span>
+                            <strong id="tpl-avg-score" class="tpl-avg-score">—</strong>
+                            <span id="tpl-rating-count" class="tpl-rating-count">Dar neįvertintas</span>
+                        </div>
+                        <div class="tpl-rating-interactive">
+                            <span id="tpl-rate-prompt" class="tpl-rate-prompt">Įvertinkite šį šabloną:</span>
+                            <div id="tpl-star-buttons" class="star-buttons" role="radiogroup" aria-label="Pasirinkite įvertinimą nuo 1 iki 5 žvaigždučių">
+                                <button type="button" class="star-btn" data-star="1" aria-label="1 žvaigždutė">★</button>
+                                <button type="button" class="star-btn" data-star="2" aria-label="2 žvaigždutės">★</button>
+                                <button type="button" class="star-btn" data-star="3" aria-label="3 žvaigždutės">★</button>
+                                <button type="button" class="star-btn" data-star="4" aria-label="4 žvaigždutės">★</button>
+                                <button type="button" class="star-btn" data-star="5" aria-label="5 žvaigždutės">★</button>
+                            </div>
+                            <button type="button" id="tpl-auth-btn" class="text-link-btn tpl-auth-btn">Prisijungti su Google</button>
+                        </div>
+                    </div>
+                    <div id="tpl-rating-feedback" class="tpl-rating-feedback hidden" aria-live="polite"></div>
 
                     <div class="template-quickfill">
                         <div class="quickfill-field">

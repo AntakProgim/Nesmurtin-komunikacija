@@ -1,3 +1,15 @@
+import { analyzeTextLocally, renderAnimatedDonutChart, type TextAnalysisResult } from './donutChart';
+import {
+  signInWithGoogle,
+  signOutUser,
+  subscribeAuth,
+  subscribeTemplateStats,
+  subscribeUserRatings,
+  submitTemplateRating,
+  type TemplateStats
+} from './firebase';
+import type { User } from 'firebase/auth';
+
 // --- TYPES ---
 interface QuizQuestion {
   question: string;
@@ -426,6 +438,14 @@ let activeTemplateCategory = 'all';
 let activeTemplateId = letterTemplates[0].id;
 let activeTemplateMode: 'structured' | 'editor' = 'structured';
 let isEditorDirty = false;
+let activeTemplateSort: 'rating' | 'default' = 'rating';
+let currentUser: User | null = null;
+let templateStatsMap: Record<string, TemplateStats> = {};
+let userRatingsMap: Record<string, number> = {};
+let unsubUserRatings: (() => void) | null = null;
+let ratingInProgress = false;
+let liveAnalysisTimer: number | null = null;
+let ratingFeedbackTimer: number | null = null;
 
 // Quiz State
 let quizSet: QuizQuestion[] = [];
@@ -463,6 +483,7 @@ function init() {
   setupNavigation();
   setupReframer();
   setupTemplates();
+  setupFirebaseSync();
   setupPractice();
   setupChatBot();
   setupGuideTabs();
@@ -525,7 +546,17 @@ function showSection(id: string) {
   }
 }
 
-async function apiRephrase(audience: string, format: string, intensityDesc: string, intensity: string, input: string): Promise<string> {
+interface RephraseApiResponse {
+  text: string;
+  analysis?: {
+    facts: number;
+    feelings: number;
+    needs: number;
+    summary: string;
+  };
+}
+
+async function apiRephrase(audience: string, format: string, intensityDesc: string, intensity: string, input: string): Promise<RephraseApiResponse> {
   const res = await fetch('/api/rephrase', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -536,7 +567,69 @@ async function apiRephrase(audience: string, format: string, intensityDesc: stri
     throw new Error(errData.error || `Serverio klaida: ${res.status}`);
   }
   const data = await res.json();
-  return data.text;
+  return {
+    text: data.text,
+    analysis: data.analysis
+  };
+}
+
+function normalizeAnalysisResult(
+  raw: { facts?: number; feelings?: number; needs?: number; summary?: string } | undefined,
+  fallbackInput: string,
+  source: 'live' | 'ai'
+): TextAnalysisResult {
+  if (
+    raw &&
+    typeof raw.facts === 'number' &&
+    typeof raw.feelings === 'number' &&
+    typeof raw.needs === 'number' &&
+    Number.isFinite(raw.facts) &&
+    Number.isFinite(raw.feelings) &&
+    Number.isFinite(raw.needs)
+  ) {
+    const f = Math.max(0, raw.facts);
+    const e = Math.max(0, raw.feelings);
+    const n = Math.max(0, raw.needs);
+    const total = f + e + n;
+    if (total > 0) {
+      const facts = Math.round((f / total) * 100);
+      const feelings = Math.round((e / total) * 100);
+      const needs = Math.max(0, 100 - facts - feelings);
+      return {
+        facts,
+        feelings,
+        needs,
+        summary: (raw.summary || '').trim() || analyzeTextLocally(fallbackInput).summary,
+        source
+      };
+    }
+  }
+  return { ...analyzeTextLocally(fallbackInput), source };
+}
+
+function updateAnalysisPanel(result: TextAnalysisResult, popReveal: boolean) {
+  const panel = document.getElementById('text-analysis-panel');
+  const metaEl = document.getElementById('analysis-source-meta');
+  const donutContainer = document.getElementById('nvc-donut-container');
+  const factsPct = document.getElementById('legend-facts-pct');
+  const feelingsPct = document.getElementById('legend-feelings-pct');
+  const needsPct = document.getElementById('legend-needs-pct');
+  const summaryEl = document.getElementById('analysis-summary-text');
+
+  if (!panel || !donutContainer) return;
+
+  panel.classList.remove('hidden');
+  if (metaEl) {
+    metaEl.textContent = result.source === 'ai'
+      ? 'DI teksto analizė (atnaujinta gavus atsakymą)'
+      : 'Preliminari analizė rašant';
+  }
+  if (factsPct) factsPct.textContent = `${result.facts}%`;
+  if (feelingsPct) feelingsPct.textContent = `${result.feelings}%`;
+  if (needsPct) needsPct.textContent = `${result.needs}%`;
+  if (summaryEl) summaryEl.textContent = result.summary;
+
+  renderAnimatedDonutChart(donutContainer, result, { popReveal });
 }
 
 async function apiChat(text: string): Promise<string> {
@@ -579,6 +672,28 @@ function setupReframer() {
   const actionsRow = document.getElementById('reframer-result-actions');
   const copyBtn = document.getElementById('copy-rephrase-button');
   const exportBtn = document.getElementById('export-pdf-button');
+  const userInputEl = document.getElementById('user-input') as HTMLTextAreaElement | null;
+
+  // Live animated D3 donut analysis as user types
+  userInputEl?.addEventListener('input', () => {
+    if (liveAnalysisTimer !== null) {
+      window.clearTimeout(liveAnalysisTimer);
+      liveAnalysisTimer = null;
+    }
+    const val = userInputEl.value.trim();
+    const panel = document.getElementById('text-analysis-panel');
+    if (!val) {
+      panel?.classList.add('hidden');
+      return;
+    }
+    if (val.length < 6) return;
+
+    liveAnalysisTimer = window.setTimeout(() => {
+      const wasHidden = Boolean(panel?.classList.contains('hidden'));
+      const localAnalysis = analyzeTextLocally(val);
+      updateAnalysisPanel(localAnalysis, wasHidden);
+    }, 280);
+  });
 
   // Auto-switch to written format when "Institucijai" is selected
   document.querySelectorAll('input[name="audience"]').forEach(radio => {
@@ -602,6 +717,11 @@ function setupReframer() {
     const output = document.getElementById('gemini-output');
     if (!input || !output) return;
 
+    if (liveAnalysisTimer !== null) {
+      window.clearTimeout(liveAnalysisTimer);
+      liveAnalysisTimer = null;
+    }
+
     output.innerHTML = '<div class="loading-shimmer" style="height:120px; width:100%; border-radius:12px;"></div>';
     actionsRow?.classList.add('hidden');
 
@@ -611,13 +731,20 @@ function setupReframer() {
       const intensity = (document.getElementById('intensity-slider') as HTMLInputElement)?.value || '10';
       const intensityDesc = intensityLabels[parseInt(intensity) - 1];
       
-      const text = await apiRephrase(audience, format, intensityDesc, intensity, input);
-      lastReframedText = text || '';
+      const result = await apiRephrase(audience, format, intensityDesc, intensity, input);
+      lastReframedText = result.text || '';
       output.innerHTML = `<div class="output-text">${escapeHtml(lastReframedText)}</div>`;
       actionsRow?.classList.remove('hidden');
+
+      // Pop-reveal animated D3 donut chart with scale + color transition on AI response
+      const aiAnalysis = normalizeAnalysisResult(result.analysis, input, 'ai');
+      updateAnalysisPanel(aiAnalysis, true);
     } catch (e: any) {
       console.error("Reframer error:", e);
       output.innerHTML = `<p class="error-msg">Įvyko klaida: ${escapeHtml(e.message || 'Nepavyko susisiekti su serveriu.')}</p>`;
+      // Still display local analysis so user gets visual feedback even if AI quota is temporarily hit
+      const fallbackAnalysis = analyzeTextLocally(input);
+      updateAnalysisPanel(fallbackAnalysis, true);
     }
   });
 
@@ -720,6 +847,139 @@ function buildFullLetterBody(tpl: LetterTemplate): string {
   ].join('\n');
 }
 
+// --- FIREBASE TEMPLATE RATINGS ---
+function formatRatingCountLt(count: number): string {
+  if (count <= 0) return 'Dar neįvertintas';
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} įvertinimas`;
+  if (mod10 >= 2 && mod10 <= 9 && (mod100 < 11 || mod100 > 19)) return `${count} įvertinimai`;
+  return `${count} įvertinimų`;
+}
+
+function getTemplateAverage(templateId: string): { avg: number; count: number } {
+  const stats = templateStatsMap[templateId];
+  if (!stats || stats.ratingCount <= 0) {
+    return { avg: 0, count: 0 };
+  }
+  return {
+    avg: stats.ratingSum / stats.ratingCount,
+    count: stats.ratingCount
+  };
+}
+
+function getTopRatedTemplateId(items: LetterTemplate[]): string | null {
+  let bestId: string | null = null;
+  let bestAvg = 0;
+  let bestCount = 0;
+  for (const tpl of items) {
+    const { avg, count } = getTemplateAverage(tpl.id);
+    if (count > 0 && (avg > bestAvg || (avg === bestAvg && count > bestCount))) {
+      bestId = tpl.id;
+      bestAvg = avg;
+      bestCount = count;
+    }
+  }
+  return bestId;
+}
+
+function showRatingFeedback(message: string, isError = false) {
+  const el = document.getElementById('tpl-rating-feedback');
+  if (!el) return;
+  if (ratingFeedbackTimer !== null) {
+    window.clearTimeout(ratingFeedbackTimer);
+    ratingFeedbackTimer = null;
+  }
+  el.textContent = message;
+  el.classList.remove('hidden');
+  el.classList.toggle('is-error', isError);
+
+  if (!isError) {
+    ratingFeedbackTimer = window.setTimeout(() => {
+      el.classList.add('hidden');
+    }, 4500);
+  }
+}
+
+function paintStarButtons(hoverStar = 0) {
+  const savedStars = userRatingsMap[activeTemplateId] || 0;
+  const buttons = document.querySelectorAll('#tpl-star-buttons .star-btn');
+  buttons.forEach(btn => {
+    const val = parseInt((btn as HTMLElement).dataset.star || '0', 10);
+    const isHovered = hoverStar > 0 && val <= hoverStar;
+    const isFilled = hoverStar === 0 && val <= savedStars;
+    btn.classList.toggle('hovered', isHovered);
+    btn.classList.toggle('filled', isFilled);
+    btn.setAttribute('aria-checked', String(val === savedStars));
+    (btn as HTMLButtonElement).disabled = ratingInProgress;
+  });
+}
+
+function renderTemplateRatingBar() {
+  const avgEl = document.getElementById('tpl-avg-score');
+  const countEl = document.getElementById('tpl-rating-count');
+  const promptEl = document.getElementById('tpl-rate-prompt');
+  const authBtn = document.getElementById('tpl-auth-btn');
+
+  const { avg, count } = getTemplateAverage(activeTemplateId);
+  if (avgEl) avgEl.textContent = count > 0 ? avg.toFixed(1) : '—';
+  if (countEl) countEl.textContent = formatRatingCountLt(count);
+
+  const userStars = userRatingsMap[activeTemplateId] || 0;
+  if (promptEl) {
+    promptEl.textContent = userStars > 0
+      ? `Jūsų įvertinimas (${userStars} ★):`
+      : 'Įvertinkite šį šabloną:';
+  }
+
+  if (authBtn) {
+    if (currentUser) {
+      const displayName = (currentUser.displayName || currentUser.email || 'Paskyra').split(' ')[0];
+      authBtn.textContent = `Atsijungti (${displayName})`;
+    } else {
+      authBtn.textContent = 'Prisijungti su Google';
+    }
+  }
+
+  paintStarButtons(0);
+}
+
+function setupFirebaseSync() {
+  subscribeTemplateStats(
+    (statsMap) => {
+      templateStatsMap = statsMap;
+      renderTemplatesList();
+      renderTemplateRatingBar();
+    },
+    () => {
+      // Error already logged in structured JSON by handleFirestoreError
+    }
+  );
+
+  subscribeAuth((user) => {
+    currentUser = user;
+    if (unsubUserRatings) {
+      unsubUserRatings();
+      unsubUserRatings = null;
+    }
+    if (user) {
+      unsubUserRatings = subscribeUserRatings(
+        user.uid,
+        (ratings) => {
+          userRatingsMap = ratings;
+          renderTemplateRatingBar();
+        },
+        () => {
+          // Logged by handleFirestoreError
+        }
+      );
+    } else {
+      userRatingsMap = {};
+    }
+    renderTemplateRatingBar();
+  });
+}
+
 function setupTemplates() {
   // Pre-fill date with today's Lithuanian date as a helpful starting point
   const dateInput = document.getElementById('qf-date') as HTMLInputElement | null;
@@ -742,6 +1002,85 @@ function setupTemplates() {
       renderTemplatesList();
       renderActiveTemplate();
     });
+  });
+
+  // Sort toggle buttons
+  const sortRatingBtn = document.getElementById('tpl-sort-rating');
+  const sortDefaultBtn = document.getElementById('tpl-sort-default');
+
+  sortRatingBtn?.addEventListener('click', () => {
+    activeTemplateSort = 'rating';
+    sortRatingBtn.classList.add('active');
+    sortDefaultBtn?.classList.remove('active');
+    renderTemplatesList();
+  });
+
+  sortDefaultBtn?.addEventListener('click', () => {
+    activeTemplateSort = 'default';
+    sortDefaultBtn.classList.add('active');
+    sortRatingBtn?.classList.remove('active');
+    renderTemplatesList();
+  });
+
+  // Interactive star rating controls
+  const starsContainer = document.getElementById('tpl-star-buttons');
+  starsContainer?.addEventListener('mouseleave', () => paintStarButtons(0));
+
+  starsContainer?.querySelectorAll('.star-btn').forEach(btn => {
+    const starVal = parseInt((btn as HTMLElement).dataset.star || '0', 10);
+    btn.addEventListener('mouseenter', () => {
+      if (!ratingInProgress) paintStarButtons(starVal);
+    });
+    btn.addEventListener('focus', () => {
+      if (!ratingInProgress) paintStarButtons(starVal);
+    });
+    btn.addEventListener('blur', () => {
+      if (!ratingInProgress) paintStarButtons(0);
+    });
+    btn.addEventListener('click', async () => {
+      if (ratingInProgress || starVal < 1 || starVal > 5) return;
+      ratingInProgress = true;
+      paintStarButtons(starVal);
+
+      try {
+        if (!currentUser) {
+          await signInWithGoogle();
+        }
+        await submitTemplateRating(activeTemplateId, starVal);
+        userRatingsMap[activeTemplateId] = starVal;
+        showRatingFeedback(`Ačiū! Jūsų įvertinimas (${starVal} ★) išsaugotas.`);
+      } catch (err: any) {
+        const msg = err?.code === 'auth/popup-closed-by-user'
+          ? 'Prisijungimas atšauktas. Norėdami įvertinti šabloną, prisijunkite su Google paskyra.'
+          : err?.code === 'auth/popup-blocked'
+            ? 'Naršyklė užblokavo prisijungimo langą. Leiskite iššokančius langus ir bandykite dar kartą.'
+            : 'Nepavyko išsaugoti įvertinimo. Patikrinkite prisijungimą ir bandykite dar kartą.';
+        showRatingFeedback(msg, true);
+      } finally {
+        ratingInProgress = false;
+        renderTemplateRatingBar();
+        renderTemplatesList();
+      }
+    });
+  });
+
+  // Google Sign-In / Sign-Out button
+  document.getElementById('tpl-auth-btn')?.addEventListener('click', async () => {
+    try {
+      if (currentUser) {
+        await signOutUser();
+        showRatingFeedback('Atsijungėte iš savo Google paskyros.');
+      } else {
+        await signInWithGoogle();
+        showRatingFeedback('Prisijungta! Dabar galite vertinti šablonus žvaigždutėmis.');
+      }
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user') {
+        showRatingFeedback('Prisijungimas atšauktas.', true);
+      } else {
+        showRatingFeedback('Nepavyko prisijungti prie Google paskyros. Bandykite dar kartą.', true);
+      }
+    }
   });
 
   // View mode toggle
@@ -804,9 +1143,10 @@ function setupTemplates() {
   // Send template to AI Reframer for custom tone adjustment
   document.getElementById('send-template-to-reframer-btn')?.addEventListener('click', () => {
     const { subject, body } = getActiveLetterContent();
+    const fullText = `Tema: ${subject}\n\n${body}`;
     const userInput = document.getElementById('user-input') as HTMLTextAreaElement | null;
     if (userInput) {
-      userInput.value = `Tema: ${subject}\n\n${body}`;
+      userInput.value = fullText;
     }
     const instRadio = document.querySelector('input[name="audience"][value="institution"]') as HTMLInputElement | null;
     if (instRadio) instRadio.checked = true;
@@ -814,6 +1154,7 @@ function setupTemplates() {
     if (writtenRadio) writtenRadio.checked = true;
     updateReframerFormatUI();
     showSection('reframer');
+    updateAnalysisPanel(analyzeTextLocally(fullText), true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
@@ -862,8 +1203,20 @@ function updateChecklistProgress() {
 }
 
 function getFilteredTemplates(): LetterTemplate[] {
-  if (activeTemplateCategory === 'all') return letterTemplates;
-  return letterTemplates.filter(t => t.category === activeTemplateCategory);
+  const base = activeTemplateCategory === 'all'
+    ? [...letterTemplates]
+    : letterTemplates.filter(t => t.category === activeTemplateCategory);
+
+  if (activeTemplateSort === 'rating') {
+    base.sort((a, b) => {
+      const statA = getTemplateAverage(a.id);
+      const statB = getTemplateAverage(b.id);
+      if (statB.avg !== statA.avg) return statB.avg - statA.avg;
+      if (statB.count !== statA.count) return statB.count - statA.count;
+      return letterTemplates.indexOf(a) - letterTemplates.indexOf(b);
+    });
+  }
+  return base;
 }
 
 function getActiveLetterContent(): { subject: string, body: string } {
@@ -884,13 +1237,22 @@ function renderTemplatesList() {
   const container = document.getElementById('templates-list');
   if (!container) return;
   const items = getFilteredTemplates();
+  const topRatedId = getTopRatedTemplateId(items);
 
-  container.innerHTML = items.map(tpl => `
-    <button type="button" class="template-list-item ${tpl.id === activeTemplateId ? 'active' : ''}" data-tpl-id="${tpl.id}">
-      <div class="tpl-item-title">${escapeHtml(tpl.title)}</div>
-      <div class="tpl-item-meta">${escapeHtml(tpl.categoryLabel)} · ${escapeHtml(tpl.addressee)}</div>
-    </button>
-  `).join('');
+  container.innerHTML = items.map(tpl => {
+    const { avg, count } = getTemplateAverage(tpl.id);
+    const ratingRowHtml = count > 0
+      ? `<span class="tpl-item-star" aria-hidden="true">★</span><strong>${avg.toFixed(1)}</strong><span>(${escapeHtml(formatRatingCountLt(count))})</span>${tpl.id === topRatedId ? '<span class="tpl-item-top-note">· Labiausiai pasiteisinęs</span>' : ''}`
+      : `<span>Dar neįvertintas</span>`;
+
+    return `
+      <button type="button" class="template-list-item ${tpl.id === activeTemplateId ? 'active' : ''}" data-tpl-id="${tpl.id}">
+        <div class="tpl-item-title">${escapeHtml(tpl.title)}</div>
+        <div class="tpl-item-meta">${escapeHtml(tpl.categoryLabel)} · ${escapeHtml(tpl.addressee)}</div>
+        <div class="tpl-item-rating-row">${ratingRowHtml}</div>
+      </button>
+    `;
+  }).join('');
 
   container.querySelectorAll('.template-list-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -899,6 +1261,8 @@ function renderTemplatesList() {
       activeTemplateId = id;
       isEditorDirty = false;
       resetTemplateChecklist();
+      const feedbackEl = document.getElementById('tpl-rating-feedback');
+      feedbackEl?.classList.add('hidden');
       renderTemplatesList();
       renderActiveTemplate();
     });
@@ -975,6 +1339,8 @@ function renderActiveTemplate() {
     subjectInput.value = subjectResolved;
     bodyTextarea.value = buildFullLetterBody(tpl);
   }
+
+  renderTemplateRatingBar();
 }
 
 // --- CHAT BOT ---

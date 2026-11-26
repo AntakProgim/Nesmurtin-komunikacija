@@ -1,5 +1,5 @@
 import type { Config } from "@netlify/functions";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 
 export default async (req: Request) => {
   if (req.method !== "POST") {
@@ -35,31 +35,22 @@ export default async (req: Request) => {
     const audienceLabel = audienceMap[audience] || audience || 'Pašnekovas';
     const isWritten = format === 'written' || audience === 'institution';
 
-    const prompt = isWritten
-      ? `Performuok šią kritiką, problemą ar juodraštį į konstruktyvų oficialų el. laišką arba raštą pagal Nesmurtinės komunikacijos (NK) principus.
+    const modeInstructions = isWritten
+      ? `Performuok pradinį tekstą į konstruktyvų oficialų el. laišką arba raštą pagal Nesmurtinės komunikacijos (NK) principus (Tema, mandagus kreipinys, neutralūs faktai su datomis/vietomis laužtiniuose skliaustuose jei trūksta, dalykiška jausmo/poveikio formuluotė, bendras poreikis, konkretus prašymas su terminu, atsisveikinimas).`
+      : `Performuok pradinį tekstą į Nesmurtinės komunikacijos (NK) žodinį prašymą (stebėjimas, jausmas, poreikis, konkretus prašymas klausimu).`;
+
+    const prompt = `${modeInstructions}
 Gavėjas: ${audienceLabel}
-Formatas: Oficialus susirašinėjimas (el. laiškas / raštas)
-Tonas (skalėje 1-20): ${intensity} (${intensityDesc}) – išlaikyk dalykišką, pagarbų, nesmurtinį stilių.
-
-Struktūra:
-- Tema: trumpa, neutrali ir aiški laiško tema
-- Mandagus kreipinys
-- Faktai (stebėjimas): neutraliai išdėstyti faktai be kaltinimų ar etikečių (jei trūksta datos ar rašto numerio, palik vietą laužtiniuose skliaustuose, pvz. [data])
-- Jausmas / poveikis: profesionali, institucijai tinkama formuluotė (pvz., „jaučiame susirūpinimą“, „kyla nerimas“, „mums svarbu“)
-- Poreikis: bendras visuotinis poreikis (saugumas, aiškumas, skaidrumas, bendradarbiavimas, pasitikėjimas)
-- Prašymas: konkretus, įgyvendinamas veiksmas ir aiškus pageidaujamas terminas ar atsakymo forma
-- Mandagus atsisveikinimas
-
-Pradinė mintis: "${input}"
-
-Atsakyk tik paruoštu laiško tekstu lietuvių kalba, be papildomų įžanginių ar baigiamųjų komentarų.`
-      : `Performuok šią kritiką į Nesmurtinės komunikacijos (NK) žodinį prašymą (stebėjimas, jausmas, poreikis, konkretus prašymas klausimu).
-Auditorija: ${audienceLabel}
-Formatas: Žodinis pokalbis
+Formatas: ${isWritten ? 'Oficialus susirašinėjimas (el. laiškas / raštas)' : 'Žodinis pokalbis'}
 Tonas (skalėje 1-20): ${intensity} (${intensityDesc})
-Pradinė mintis: "${input}"
 
-Atsakyk tik performuluotu prašymu lietuvių kalba, be papildomų komentarų.`;
+Taip pat įvertink PRADINĮ vartotojo tekstą pagal tai, kiek jame išreikšta orientacijos į:
+1. faktus (stebėjimą / konkrečius įvykius) – facts (0–100)
+2. jausmus (emocinę būseną / toną) – feelings (0–100)
+3. poreikius (vertybes / tikslus / norimus rezultatus) – needs (0–100)
+Šių trijų procentų suma PRIVALO būti lygi 100. Pridėk trumpą 1 sakinio įžvalgą lietuvių kalba (summary).
+
+Pradinis tekstas: "${input}"`;
 
     const ai = new GoogleGenAI({
       apiKey,
@@ -73,11 +64,36 @@ Atsakyk tik performuluotu prašymu lietuvių kalba, be papildomų komentarų.`;
       model: 'gemini-4-hydrogen',
       contents: prompt,
       config: {
-        systemInstruction: "Tu esi Nesmurtinės komunikacijos (NK) ekspertas. Puikiai išmanai tiek kasdienius pokalbius, tiek oficialų dalykinį susirašinėjimą su institucijomis pagal NK principus.",
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            text: { type: Type.STRING },
+            analysis: {
+              type: Type.OBJECT,
+              properties: {
+                facts: { type: Type.INTEGER },
+                feelings: { type: Type.INTEGER },
+                needs: { type: Type.INTEGER },
+                summary: { type: Type.STRING },
+              },
+            },
+          },
+        },
+        systemInstruction: "Tu esi Nesmurtinės komunikacijos (NK) ekspertas. Puikiai išmanai tiek kasdienius pokalbius, tiek oficialų dalykinį susirašinėjimą su institucijomis pagal NK principus. Visada grąžink tikslų JSON objektą.",
       }
     });
 
-    return new Response(JSON.stringify({ text: response.text }), {
+    const rawText = (response.text ?? '').trim();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = { text: rawText, analysis: { facts: 34, feelings: 33, needs: 33, summary: '' } };
+    }
+
+    return new Response(JSON.stringify({ text: parsed?.text || rawText, analysis: parsed?.analysis }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     });
@@ -88,6 +104,8 @@ Atsakyk tik performuluotu prašymu lietuvių kalba, be papildomų komentarų.`;
       message = 'Neteisingas arba negaliojantis Gemini API raktas Netlify nustatymuose.';
     } else if (message.includes('leaked')) {
       message = 'Jūsų API raktas buvo užblokuotas kaip nutekėjęs. Sukurkite naują raktą Google AI Studio ir atnaujinkite Netlify kintamąjį.';
+    } else if (message.includes('RESOURCE_EXHAUSTED') || message.includes('quota')) {
+      message = 'Laikinai pasiektas užklausų limitas (kvota). Pabandykite šiek tiek vėliau.';
     }
     return new Response(JSON.stringify({ error: message }), { 
       status: 500,
