@@ -68,8 +68,11 @@ function formatError(error: any): string {
   if (msg.includes('leaked')) {
     return 'Jūsų API raktas buvo užblokuotas kaip nutekėjęs. Sukurkite naują raktą Google AI Studio ir atnaujinkite Secrets nustatymus.';
   }
+  if (msg.includes('spending cap') || msg.includes('monthly spending')) {
+    return 'Pasiektas šio Google Cloud projekto mėnesinis išlaidų limitas (spending cap). Patikrinkite arba pakoreguokite limitą Google AI Studio skiltyje „Spend“ (ai.studio/spend).';
+  }
   if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('429')) {
-    return 'Laikinai pasiektas užklausų limitas (kvota). Palaukite kelias sekundes ir pabandykite dar kartą arba nustatymuose (Settings > Secrets) pasirinkite mokamo plano API raktą.';
+    return 'Laikinai pasiektas užklausų limitas (kvota). Palaukite kelias sekundes ir pabandykite dar kartą arba patikrinkite API rakto nustatymus (Settings > Secrets).';
   }
   return msg || 'Nepavyko sugeneruoti atsakymo.';
 }
@@ -139,10 +142,10 @@ app.post('/api/rephrase', async (req: Request, res: Response) => {
     const client = getAiClient();
     const response = await withRetry(() =>
       client.models.generateContent({
-        model: 'gemini-4-hydrogen',
+        model: 'gemini-3.1-flash-lite',
         contents: buildRephrasePrompt(audience, format, intensity, intensityDesc, input),
         config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -182,31 +185,8 @@ app.post('/api/rephrase', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/chat', async (req: Request, res: Response) => {
-  try {
-    const { messages } = req.body;
-    if (!messages || !Array.isArray(messages)) {
-      res.status(400).json({ error: 'Messages array is required' });
-      return;
-    }
-
-    const client = getAiClient();
-    const response = await withRetry(() =>
-      client.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: messages,
-        config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          systemInstruction: 'Tu esi Nesmurtinės Komunikacijos (NK) ekspertas ir empatiškas mentorius. Padėk vartotojui suformuluoti prašymus, atpažinti jausmus ir poreikius tiek gyvuose pokalbiuose (šeimoje, mokykloje, darbe), tiek oficialiame susirašinėjime su institucijomis (el. laiškuose, raštuose, kreipimuose į savivaldybę, ministerijas ar įstaigas). Kai vartotojas klausia apie raštą institucijai, patark, kaip neutraliai pateikti faktus su datomis, profesionaliai įvardyti poveikį/susirūpinimą, bendrą poreikį ir suformuluoti konkretų prašymą su terminu. Kalbėk šiltai, aiškiai, palaikančiai, naudok taisyklingą lietuvių kalbą.',
-        },
-      })
-    );
-
-    res.json({ text: response.text });
-  } catch (error: any) {
-    console.error('Server chat error:', error);
-    res.status(500).json({ error: formatError(error) });
-  }
+app.post('/api/chat', (_req: Request, res: Response) => {
+  res.status(410).json({ error: 'DI pagalbos pokalbis yra išjungtas.' });
 });
 
 // Serve static files from the React/Vite app

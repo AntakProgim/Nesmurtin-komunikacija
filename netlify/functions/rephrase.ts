@@ -61,10 +61,10 @@ Pradinis tekstas: "${input}"`;
       },
     });
     const response = await ai.models.generateContent({
-      model: 'gemini-4-hydrogen',
+      model: 'gemini-3.1-flash-lite',
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -104,7 +104,9 @@ Pradinis tekstas: "${input}"`;
       message = 'Neteisingas arba negaliojantis Gemini API raktas Netlify nustatymuose.';
     } else if (message.includes('leaked')) {
       message = 'Jūsų API raktas buvo užblokuotas kaip nutekėjęs. Sukurkite naują raktą Google AI Studio ir atnaujinkite Netlify kintamąjį.';
-    } else if (message.includes('RESOURCE_EXHAUSTED') || message.includes('quota')) {
+    } else if (message.includes('spending cap') || message.includes('monthly spending')) {
+      message = 'Pasiektas šio Google Cloud projekto mėnesinis išlaidų limitas (spending cap). Patikrinkite arba pakoreguokite limitą Google AI Studio skiltyje „Spend“ (ai.studio/spend).';
+    } else if (message.includes('RESOURCE_EXHAUSTED') || message.includes('quota') || message.includes('429')) {
       message = 'Laikinai pasiektas užklausų limitas (kvota). Pabandykite šiek tiek vėliau.';
     }
     return new Response(JSON.stringify({ error: message }), { 

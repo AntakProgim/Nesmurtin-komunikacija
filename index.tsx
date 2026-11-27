@@ -431,7 +431,6 @@ const quizDatabase: QuizQuestion[] = [
 ];
 
 // --- STATE ---
-let chatHistory: any[] = [];
 let selectedMapFeeling: string | null = null;
 let lastReframedText = '';
 let activeTemplateCategory = 'all';
@@ -485,7 +484,6 @@ function init() {
   setupTemplates();
   setupFirebaseSync();
   setupPractice();
-  setupChatBot();
   setupGuideTabs();
   setupModals();
   setupSliderDisplay();
@@ -630,28 +628,6 @@ function updateAnalysisPanel(result: TextAnalysisResult, popReveal: boolean) {
   if (summaryEl) summaryEl.textContent = result.summary;
 
   renderAnimatedDonutChart(donutContainer, result, { popReveal });
-}
-
-async function apiChat(text: string): Promise<string> {
-  chatHistory.push({ role: 'user', parts: [{ text }] });
-  try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: chatHistory })
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `Serverio klaida: ${res.status}`);
-    }
-    const data = await res.json();
-    const botText = data.text;
-    chatHistory.push({ role: 'model', parts: [{ text: botText }] });
-    return botText;
-  } catch (error: any) {
-    chatHistory.pop();
-    throw error;
-  }
 }
 
 function updateReframerFormatUI() {
@@ -1341,54 +1317,6 @@ function renderActiveTemplate() {
   }
 
   renderTemplateRatingBar();
-}
-
-// --- CHAT BOT ---
-function setupChatBot() {
-  const toggleBtn = document.getElementById('chat-toggle-btn');
-  const chatWin = document.getElementById('chat-window');
-  const closeBtn = document.getElementById('chat-close-btn');
-  const sendBtn = document.getElementById('chat-send-btn');
-  const userInput = document.getElementById('chat-user-input') as HTMLInputElement;
-  const chatMsgs = document.getElementById('chat-messages');
-
-  if (!toggleBtn || !chatWin || !closeBtn || !sendBtn || !userInput || !chatMsgs) return;
-
-  toggleBtn.addEventListener('click', () => chatWin.classList.toggle('hidden'));
-  closeBtn.addEventListener('click', () => chatWin.classList.add('hidden'));
-
-  const sendMessage = async () => {
-    const text = userInput.value.trim();
-    if (!text) return;
-
-    userInput.value = '';
-    const userBubble = document.createElement('div');
-    userBubble.className = 'user-msg-bubble';
-    userBubble.textContent = text;
-    chatMsgs.appendChild(userBubble);
-    chatMsgs.scrollTop = chatMsgs.scrollHeight;
-
-    const loadingId = 'loading-' + Date.now();
-    chatMsgs.innerHTML += `<div class="bot-msg-bubble" id="${loadingId}"><div class="loading-shimmer" style="width: 30px; height: 10px; border-radius: 5px;"></div></div>`;
-    chatMsgs.scrollTop = chatMsgs.scrollHeight;
-
-    try {
-      const botText = await apiChat(text);
-      const loadingEl = document.getElementById(loadingId);
-      if (loadingEl) {
-        loadingEl.textContent = botText || "Atsiprašau, įvyko klaida.";
-      }
-    } catch (e: any) {
-      const loadingEl = document.getElementById(loadingId);
-      if (loadingEl) {
-          loadingEl.textContent = e.message || "Atsiprašau, susidūriau su techninėmis kliūtimis.";
-      }
-    }
-    chatMsgs.scrollTop = chatMsgs.scrollHeight;
-  };
-
-  sendBtn.addEventListener('click', sendMessage);
-  userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 }
 
 // --- PRACTICE QUIZ ---
